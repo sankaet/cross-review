@@ -35,10 +35,16 @@ Based on mode:
 
 **--file <path>:** Read the file at `<path>` and write its contents to `/tmp/cr-content-$TS.txt`. Set `SOURCE_LABEL="file — <path>"`. If the file doesn't exist, tell the user and stop.
 
+Resolve the script path (works across plugin versions):
+
+```bash
+DEBATE_PY=$(ls -d ~/.claude/plugins/cache/cross-review/cross-review/*/ 2>/dev/null | sort -V | tail -1)scripts/debate.py
+```
+
 Run initial critique (Round 1):
 
 ```bash
-python <plugin_path>/scripts/debate.py \
+python3 "$DEBATE_PY" \
   --mode <mode> \
   --content-file /tmp/cr-content-$TS.txt \
   --source-label "$SOURCE_LABEL" \
@@ -83,7 +89,7 @@ If `--raw` flag was set, skip the Claude Response section and go directly to the
 **[C] Continue:**
 - Write Claude's rebuttal to `/tmp/cr-rebuttal-<N>-$TS.txt`
 - Append to transcript: `## Round N — Claude Rebuttal\n<rebuttal>`
-- Run debate.py with `--round N+1 --rebuttal-file /tmp/cr-rebuttal-<N>-$TS.txt`
+- Run `python3 "$DEBATE_PY"` with `--round N+1 --rebuttal-file /tmp/cr-rebuttal-<N>-$TS.txt`
 - Return to Step 3
 
 **[A] Accept Claude's position:**
@@ -97,7 +103,7 @@ If `--raw` flag was set, skip the Claude Response section and go directly to the
 - Clean up temp files
 
 **[S] Synthesize:**
-- Run `debate.py --synthesize --transcript-file /tmp/cross-review-$TS.md`
+- Run `python3 "$DEBATE_PY" --synthesize --transcript-file /tmp/cross-review-$TS.md`
 - Read `{"type": "synthesis", ...}` output
 - Show synthesis inline
 - Show output (Step 5)
