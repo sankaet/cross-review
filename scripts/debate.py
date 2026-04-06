@@ -153,7 +153,7 @@ def check_convergence(client, judge_model: str, critique_text: str) -> bool:
         max_tokens=5,
     )
     answer = response.choices[0].message.content.strip().upper()
-    return answer.startswith("NO")
+    return answer == "NO"
 
 
 def get_synthesis(client, judge_model: str, transcript_file: str) -> str:
