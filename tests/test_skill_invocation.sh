@@ -57,7 +57,7 @@ ADVISOR_OUT=$(python3 ~/.claude/skill-advisor.py <<'MSGEOF'
 MSGEOF
 ) || true
 ADVISOR_OUT2=$(python3 ~/.claude/skill-advisor.py <<'MSGEOF'
-{"message": "I want to debate this architecture decision with grok"}
+{"message": "can you debate this with me"}
 MSGEOF
 ) || true
 { echo "$ADVISOR_OUT" | grep -q "cross-review" && echo "$ADVISOR_OUT2" | grep -q "cross-review"; } \
