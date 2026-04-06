@@ -24,30 +24,30 @@ def test_cache_hit_uses_cached_ids(isolated_cache):
     _write_cache(isolated_cache, {
         "resolved_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "critic": "grok-4.20-0309-reasoning",
-        "judge": "grok-4.20-multi-agent-0309"
+        "judge": "grok-4.20-0309-reasoning"
     })
     from scripts.debate import resolve_models
     mock_client = MagicMock()
     critic, judge = resolve_models(mock_client)
     assert critic == "grok-4.20-0309-reasoning"
-    assert judge == "grok-4.20-multi-agent-0309"
+    assert judge == "grok-4.20-0309-reasoning"
     mock_client.models.list.assert_not_called()
 
 
 def test_cache_miss_fetches_from_api(isolated_cache):
     """Missing cache triggers models.list() and caches result."""
     mock_model_reasoning = MagicMock(); mock_model_reasoning.id = "grok-4.20-0309-reasoning"
-    mock_model_agent = MagicMock(); mock_model_agent.id = "grok-4.20-multi-agent-0309"
+    mock_model_agent = MagicMock(); mock_model_agent.id = "grok-4.20-0309-reasoning"
     mock_client = MagicMock()
     mock_client.models.list.return_value.data = [mock_model_reasoning, mock_model_agent]
     from scripts.debate import resolve_models
     critic, judge = resolve_models(mock_client)
     assert critic == "grok-4.20-0309-reasoning"
-    assert judge == "grok-4.20-multi-agent-0309"
+    assert judge == "grok-4.20-0309-reasoning"
     assert isolated_cache.exists()
     written = json.loads(isolated_cache.read_text())
     assert written["critic"] == "grok-4.20-0309-reasoning"
-    assert written["judge"] == "grok-4.20-multi-agent-0309"
+    assert written["judge"] == "grok-4.20-0309-reasoning"
     assert "resolved_at" in written
 
 
@@ -70,7 +70,7 @@ def test_cache_corruption_treated_as_miss(isolated_cache):
     isolated_cache.parent.mkdir(parents=True, exist_ok=True)
     isolated_cache.write_text("this is not json {{{{")
     mock_model_reasoning = MagicMock(); mock_model_reasoning.id = "grok-4.20-0309-reasoning"
-    mock_model_agent = MagicMock(); mock_model_agent.id = "grok-4.20-multi-agent-0309"
+    mock_model_agent = MagicMock(); mock_model_agent.id = "grok-4.20-0309-reasoning"
     mock_client = MagicMock()
     mock_client.models.list.return_value.data = [mock_model_reasoning, mock_model_agent]
     from scripts.debate import resolve_models
@@ -78,7 +78,7 @@ def test_cache_corruption_treated_as_miss(isolated_cache):
     assert critic == "grok-4.20-0309-reasoning"
     written = json.loads(isolated_cache.read_text())
     assert written["critic"] == "grok-4.20-0309-reasoning"
-    assert written["judge"] == "grok-4.20-multi-agent-0309"
+    assert written["judge"] == "grok-4.20-0309-reasoning"
 
 
 def test_no_matching_models_exits_loudly(isolated_cache):
@@ -99,7 +99,7 @@ def test_api_failure_falls_back_to_aliases(isolated_cache, capsys):
     from scripts.debate import resolve_models
     critic, judge = resolve_models(mock_client)
     assert critic == "grok-4.20"
-    assert judge == "grok-4.20-multi-agent"
+    assert judge == "grok-4.20"
     captured = capsys.readouterr()
     assert "Warning" in captured.err
 
@@ -136,7 +136,7 @@ def test_check_convergence_yes():
     mock_client = MagicMock()
     mock_client.chat.completions.create.return_value.choices[0].message.content = "YES"
     from scripts.debate import check_convergence
-    assert check_convergence(mock_client, "grok-4.20-multi-agent-0309", "Some critique.") == False
+    assert check_convergence(mock_client, "grok-4.20-0309-reasoning", "Some critique.") == False
 
 
 def test_check_convergence_no():
@@ -144,7 +144,7 @@ def test_check_convergence_no():
     mock_client = MagicMock()
     mock_client.chat.completions.create.return_value.choices[0].message.content = "NO"
     from scripts.debate import check_convergence
-    assert check_convergence(mock_client, "grok-4.20-multi-agent-0309", "Same old critique.") == True
+    assert check_convergence(mock_client, "grok-4.20-0309-reasoning", "Same old critique.") == True
 
 
 def test_get_synthesis_calls_judge(tmp_path):
@@ -154,10 +154,10 @@ def test_get_synthesis_calls_judge(tmp_path):
     mock_client = MagicMock()
     mock_client.chat.completions.create.return_value.choices[0].message.content = "Final verdict: Claude was right."
     from scripts.debate import get_synthesis
-    result = get_synthesis(mock_client, "grok-4.20-multi-agent-0309", str(transcript_file))
+    result = get_synthesis(mock_client, "grok-4.20-0309-reasoning", str(transcript_file))
     assert result == "Final verdict: Claude was right."
     call_args = mock_client.chat.completions.create.call_args
-    assert call_args.kwargs["model"] == "grok-4.20-multi-agent-0309"
+    assert call_args.kwargs["model"] == "grok-4.20-0309-reasoning"
 
 
 def test_missing_api_key_exits(monkeypatch, tmp_path):
@@ -206,7 +206,7 @@ def test_transcript_written_correctly(tmp_path):
     from scripts.debate import init_transcript, append_transcript_section
     init_transcript(str(transcript_file), mode_label="last response",
                     critic_model="grok-4.20-0309-reasoning",
-                    judge_model="grok-4.20-multi-agent-0309",
+                    judge_model="grok-4.20-0309-reasoning",
                     content="The content to review.")
     append_transcript_section(str(transcript_file), "Round 1 — Grok Critique", "Flaw found!")
     append_transcript_section(str(transcript_file), "Round 1 — Claude Rebuttal", "Flaw addressed.")

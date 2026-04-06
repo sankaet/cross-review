@@ -25,7 +25,7 @@ from typing import Optional
 CACHE_PATH = Path.home() / ".claude" / "cross-review-models.json"
 CACHE_TTL_SECONDS = 86400  # 24 hours
 CRITIC_ALIAS = "grok-4.20"  # matches grok-4.20-<date>-reasoning (filter for -reasoning suffix below)
-JUDGE_ALIAS = "grok-4.20-multi-agent"
+JUDGE_ALIAS = "grok-4.20"  # same — multi-agent model requires different endpoint; reasoning model handles judge tasks via prompt
 XAI_BASE_URL = "https://api.x.ai/v1"
 
 CONVERGENCE_PROMPT = (
@@ -86,7 +86,7 @@ def resolve_models(client) -> tuple[str, str]:
         models = client.models.list()
         all_ids = [m.id for m in models.data]
         critics = sorted([m for m in all_ids if CRITIC_ALIAS in m and m.endswith("-reasoning")], reverse=True)
-        judges = sorted([m for m in all_ids if JUDGE_ALIAS in m], reverse=True)
+        judges = sorted([m for m in all_ids if JUDGE_ALIAS in m and m.endswith("-reasoning")], reverse=True)
 
         grok_models = [m for m in all_ids if "grok" in m.lower()]
         if not critics:
@@ -99,7 +99,7 @@ def resolve_models(client) -> tuple[str, str]:
             sys.exit(1)
         if not judges:
             print(
-                f"Error: No models matching judge alias '{JUDGE_ALIAS}' found.\n"
+                f"Error: No models matching judge alias '{JUDGE_ALIAS}' (with -reasoning suffix) found.\n"
                 f"Available Grok models: {grok_models}\n"
                 "Check XAI_API_KEY or update JUDGE_ALIAS in debate.py.",
                 file=sys.stderr
