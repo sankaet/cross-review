@@ -1,0 +1,28 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "cross-review",
+  "description": "Claude Code plugin: cross-model review and debate with Grok",
+  "owner": {
+    "name": "sankaet",
+    "url": "https://github.com/sankaet"
+  },
+  "plugins": [
+    {
+      "name": "cross-review",
+      "source": "./",
+      "description": "Cross-model review and debate: Claude vs Grok, with interactive round control",
+      "version": "1.0.0",
+      "author": {
+        "name": "sankaet",
+        "url": "https://github.com/sankaet"
+      },
+      "homepage": "https://github.com/sankaet/cross-review",
+      "repository": "https://github.com/sankaet/cross-review",
+      "license": "MIT",
+      "keywords": ["grok", "cross-review", "debate", "code-review", "xai"],
+      "category": "workflow",
+      "tags": ["grok", "xai", "debate", "review"],
+      "strict": false
+    }
+  ]
+}
