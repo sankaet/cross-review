@@ -18,6 +18,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Optional
 
 CACHE_PATH = Path.home() / ".claude" / "cross-review-models.json"
 CACHE_TTL_SECONDS = 86400  # 24 hours
@@ -117,6 +118,63 @@ def resolve_models(client) -> tuple[str, str]:
     except Exception as e:
         print(f"Warning: Could not resolve model IDs ({e}), using aliases. Verify XAI_API_KEY.", file=sys.stderr)
         return CRITIC_ALIAS, JUDGE_ALIAS
+
+
+def get_critique(client, critic_model: str, content_file: str, rebuttal_file: Optional[str]) -> str:
+    """Send content (+ optional rebuttal) to Grok reasoning model. Return critique text."""
+    content = Path(content_file).read_text()
+    user_msg = content
+    if rebuttal_file:
+        rebuttal = Path(rebuttal_file).read_text()
+        user_msg = (
+            f"{content}\n\n"
+            f"--- Claude's rebuttal to your previous critique ---\n{rebuttal}\n"
+            f"--- End rebuttal. Continue your adversarial review. ---"
+        )
+    response = client.chat.completions.create(
+        model=critic_model,
+        messages=[
+            {"role": "system", "content": CRITIC_SYSTEM},
+            {"role": "user", "content": user_msg},
+        ],
+        temperature=0.7,
+    )
+    return response.choices[0].message.content
+
+
+def check_convergence(client, judge_model: str, critique_text: str) -> bool:
+    """Return True if Grok says no new substantive objections (converged)."""
+    response = client.chat.completions.create(
+        model=judge_model,
+        messages=[
+            {"role": "user", "content": f"{CONVERGENCE_PROMPT}\n\n{critique_text}"},
+        ],
+        temperature=0.0,
+        max_tokens=5,
+    )
+    answer = response.choices[0].message.content.strip().upper()
+    return answer.startswith("NO")
+
+
+def get_synthesis(client, judge_model: str, transcript_file: str) -> str:
+    """Send full transcript to judge model and return synthesis."""
+    transcript = Path(transcript_file).read_text()
+    response = client.chat.completions.create(
+        model=judge_model,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are a neutral judge. Given a debate transcript between Claude and Grok, "
+                    "produce a final synthesis: what each side got right, what was wrong, "
+                    "and the recommended path forward."
+                )
+            },
+            {"role": "user", "content": transcript},
+        ],
+        temperature=0.3,
+    )
+    return response.choices[0].message.content
 
 
 if __name__ == "__main__":

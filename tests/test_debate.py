@@ -102,3 +102,55 @@ def test_api_failure_falls_back_to_aliases(isolated_cache, capsys):
     assert judge == "grok-4.20-multi-agent"
     captured = capsys.readouterr()
     assert "Warning" in captured.err
+
+
+def test_get_critique_calls_grok_reasoning(tmp_path):
+    """get_critique sends content to critic model and returns text."""
+    content_file = tmp_path / "content.txt"
+    content_file.write_text("Here is my plan: do thing A then B.")
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.return_value.choices[0].message.content = "Flaw: you skipped C."
+    from scripts.debate import get_critique
+    result = get_critique(mock_client, "grok-4.20-reasoning-0309", str(content_file), rebuttal_file=None)
+    assert result == "Flaw: you skipped C."
+    call_args = mock_client.chat.completions.create.call_args
+    assert call_args.kwargs["model"] == "grok-4.20-reasoning-0309"
+
+def test_get_critique_includes_rebuttal_in_second_round(tmp_path):
+    """When rebuttal_file is provided, it's appended to the user message."""
+    content_file = tmp_path / "content.txt"
+    content_file.write_text("Plan A.")
+    rebuttal_file = tmp_path / "rebuttal.txt"
+    rebuttal_file.write_text("Claude says: A is fine because of X.")
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.return_value.choices[0].message.content = "Still disagree."
+    from scripts.debate import get_critique
+    get_critique(mock_client, "grok-4.20-reasoning-0309", str(content_file), str(rebuttal_file))
+    user_msg = mock_client.chat.completions.create.call_args.kwargs["messages"][-1]["content"]
+    assert "Claude says" in user_msg
+
+def test_check_convergence_yes(tmp_path):
+    """YES response → converged=False (still new objections)."""
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.return_value.choices[0].message.content = "YES"
+    from scripts.debate import check_convergence
+    assert check_convergence(mock_client, "grok-4.20-multi-agent-0309", "Some critique.") == False
+
+def test_check_convergence_no(tmp_path):
+    """NO response → converged=True."""
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.return_value.choices[0].message.content = "NO"
+    from scripts.debate import check_convergence
+    assert check_convergence(mock_client, "grok-4.20-multi-agent-0309", "Same old critique.") == True
+
+def test_get_synthesis_calls_judge(tmp_path):
+    """Synthesis call sends full transcript to judge model."""
+    transcript_file = tmp_path / "transcript.md"
+    transcript_file.write_text("# Transcript\n## Round 1 — Grok Critique\nFlaw found.")
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.return_value.choices[0].message.content = "Final verdict: Claude was right."
+    from scripts.debate import get_synthesis
+    result = get_synthesis(mock_client, "grok-4.20-multi-agent-0309", str(transcript_file))
+    assert result == "Final verdict: Claude was right."
+    call_args = mock_client.chat.completions.create.call_args
+    assert call_args.kwargs["model"] == "grok-4.20-multi-agent-0309"
