@@ -23,30 +23,30 @@ def test_cache_hit_uses_cached_ids(isolated_cache):
     """Fresh cache (<24h) returns cached model IDs without API call."""
     _write_cache(isolated_cache, {
         "resolved_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "critic": "grok-4.20-reasoning-0309",
+        "critic": "grok-4.20-0309-reasoning",
         "judge": "grok-4.20-multi-agent-0309"
     })
     from scripts.debate import resolve_models
     mock_client = MagicMock()
     critic, judge = resolve_models(mock_client)
-    assert critic == "grok-4.20-reasoning-0309"
+    assert critic == "grok-4.20-0309-reasoning"
     assert judge == "grok-4.20-multi-agent-0309"
     mock_client.models.list.assert_not_called()
 
 
 def test_cache_miss_fetches_from_api(isolated_cache):
     """Missing cache triggers models.list() and caches result."""
-    mock_model_reasoning = MagicMock(); mock_model_reasoning.id = "grok-4.20-reasoning-0309"
+    mock_model_reasoning = MagicMock(); mock_model_reasoning.id = "grok-4.20-0309-reasoning"
     mock_model_agent = MagicMock(); mock_model_agent.id = "grok-4.20-multi-agent-0309"
     mock_client = MagicMock()
     mock_client.models.list.return_value.data = [mock_model_reasoning, mock_model_agent]
     from scripts.debate import resolve_models
     critic, judge = resolve_models(mock_client)
-    assert critic == "grok-4.20-reasoning-0309"
+    assert critic == "grok-4.20-0309-reasoning"
     assert judge == "grok-4.20-multi-agent-0309"
     assert isolated_cache.exists()
     written = json.loads(isolated_cache.read_text())
-    assert written["critic"] == "grok-4.20-reasoning-0309"
+    assert written["critic"] == "grok-4.20-0309-reasoning"
     assert written["judge"] == "grok-4.20-multi-agent-0309"
     assert "resolved_at" in written
 
@@ -56,28 +56,28 @@ def test_cache_expiry_refetches(isolated_cache):
     EXPIRED_AGE_SECONDS = CACHE_TTL_SECONDS + 3600  # 1 hour past TTL
     old_time = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - EXPIRED_AGE_SECONDS))
     _write_cache(isolated_cache, {"resolved_at": old_time, "critic": "old-critic", "judge": "old-judge"})
-    mock_model_reasoning = MagicMock(); mock_model_reasoning.id = "grok-4.20-reasoning-0415"
+    mock_model_reasoning = MagicMock(); mock_model_reasoning.id = "grok-4.20-0415-reasoning"
     mock_model_agent = MagicMock(); mock_model_agent.id = "grok-4.20-multi-agent-0415"
     mock_client = MagicMock()
     mock_client.models.list.return_value.data = [mock_model_reasoning, mock_model_agent]
     from scripts.debate import resolve_models
     critic, judge = resolve_models(mock_client)
-    assert critic == "grok-4.20-reasoning-0415"
+    assert critic == "grok-4.20-0415-reasoning"
 
 
 def test_cache_corruption_treated_as_miss(isolated_cache):
     """Malformed JSON cache is deleted and re-fetched."""
     isolated_cache.parent.mkdir(parents=True, exist_ok=True)
     isolated_cache.write_text("this is not json {{{{")
-    mock_model_reasoning = MagicMock(); mock_model_reasoning.id = "grok-4.20-reasoning-0309"
+    mock_model_reasoning = MagicMock(); mock_model_reasoning.id = "grok-4.20-0309-reasoning"
     mock_model_agent = MagicMock(); mock_model_agent.id = "grok-4.20-multi-agent-0309"
     mock_client = MagicMock()
     mock_client.models.list.return_value.data = [mock_model_reasoning, mock_model_agent]
     from scripts.debate import resolve_models
     critic, judge = resolve_models(mock_client)
-    assert critic == "grok-4.20-reasoning-0309"
+    assert critic == "grok-4.20-0309-reasoning"
     written = json.loads(isolated_cache.read_text())
-    assert written["critic"] == "grok-4.20-reasoning-0309"
+    assert written["critic"] == "grok-4.20-0309-reasoning"
     assert written["judge"] == "grok-4.20-multi-agent-0309"
 
 
@@ -98,7 +98,7 @@ def test_api_failure_falls_back_to_aliases(isolated_cache, capsys):
     mock_client.models.list.side_effect = Exception("network error")
     from scripts.debate import resolve_models
     critic, judge = resolve_models(mock_client)
-    assert critic == "grok-4.20-reasoning"
+    assert critic == "grok-4.20"
     assert judge == "grok-4.20-multi-agent"
     captured = capsys.readouterr()
     assert "Warning" in captured.err
@@ -111,10 +111,10 @@ def test_get_critique_calls_grok_reasoning(tmp_path):
     mock_client = MagicMock()
     mock_client.chat.completions.create.return_value.choices[0].message.content = "Flaw: you skipped C."
     from scripts.debate import get_critique
-    result = get_critique(mock_client, "grok-4.20-reasoning-0309", str(content_file), rebuttal_file=None)
+    result = get_critique(mock_client, "grok-4.20-0309-reasoning", str(content_file), rebuttal_file=None)
     assert result == "Flaw: you skipped C."
     call_args = mock_client.chat.completions.create.call_args
-    assert call_args.kwargs["model"] == "grok-4.20-reasoning-0309"
+    assert call_args.kwargs["model"] == "grok-4.20-0309-reasoning"
 
 
 def test_get_critique_includes_rebuttal_in_second_round(tmp_path):
@@ -126,7 +126,7 @@ def test_get_critique_includes_rebuttal_in_second_round(tmp_path):
     mock_client = MagicMock()
     mock_client.chat.completions.create.return_value.choices[0].message.content = "Still disagree."
     from scripts.debate import get_critique
-    get_critique(mock_client, "grok-4.20-reasoning-0309", str(content_file), str(rebuttal_file))
+    get_critique(mock_client, "grok-4.20-0309-reasoning", str(content_file), str(rebuttal_file))
     user_msg = mock_client.chat.completions.create.call_args.kwargs["messages"][-1]["content"]
     assert "Claude says" in user_msg
 
@@ -205,7 +205,7 @@ def test_transcript_written_correctly(tmp_path):
     transcript_file = tmp_path / "transcript.md"
     from scripts.debate import init_transcript, append_transcript_section
     init_transcript(str(transcript_file), mode_label="last response",
-                    critic_model="grok-4.20-reasoning-0309",
+                    critic_model="grok-4.20-0309-reasoning",
                     judge_model="grok-4.20-multi-agent-0309",
                     content="The content to review.")
     append_transcript_section(str(transcript_file), "Round 1 — Grok Critique", "Flaw found!")
@@ -213,7 +213,7 @@ def test_transcript_written_correctly(tmp_path):
     text = transcript_file.read_text()
     assert "# Cross-Review Transcript" in text
     assert "Mode: last response" in text
-    assert "grok-4.20-reasoning-0309" in text
+    assert "grok-4.20-0309-reasoning" in text
     assert "Round 1 — Grok Critique" in text
     assert "Flaw found!" in text
 
