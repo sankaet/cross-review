@@ -2,6 +2,12 @@
   "name": "cross-review",
   "version": "1.0.0",
   "description": "Cross-model review and debate: Claude vs Grok, with interactive round control",
-  "executables": ["scripts/debate.py"],
-  "requires_env": ["XAI_API_KEY"]
+  "author": {
+    "name": "sankaet",
+    "url": "https://github.com/sankaet"
+  },
+  "homepage": "https://github.com/sankaet/cross-review",
+  "repository": "https://github.com/sankaet/cross-review",
+  "license": "MIT",
+  "keywords": ["grok", "cross-review", "debate", "code-review", "xai"]
 }
