@@ -173,14 +173,13 @@ def test_content_file_not_found_exits(monkeypatch, tmp_path):
     """Non-existent --content-file causes clean SystemExit(1) before any API call."""
     monkeypatch.setenv("XAI_API_KEY", "xai-fake-key")
     transcript_file = tmp_path / "transcript.md"
-    import sys as _sys
-    _sys.argv = [
+    monkeypatch.setattr("sys.argv", [
         "debate.py", "--mode", "last",
         "--content-file", "/tmp/nonexistent-cr-file-xyz123.txt",
         "--source-label", "last response",
         "--transcript-file", str(transcript_file),
         "--round", "1"
-    ]
+    ])
     from scripts import debate as _debate
     with pytest.raises(SystemExit) as exc:
         _debate.main()

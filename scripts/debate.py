@@ -181,7 +181,7 @@ def get_synthesis(client, judge_model: str, transcript_file: str) -> str:
 
 def init_transcript(transcript_file: str, mode_label: str, critic_model: str,
                     judge_model: str, content: str):
-    ts = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     header = (
         f"# Cross-Review Transcript\n"
         f"Date: {ts}\n"
@@ -204,7 +204,7 @@ def append_error_to_transcript(transcript_file: str, message: str):
 
 def main():
     parser = argparse.ArgumentParser(description="Grok debate interface for cross-review plugin")
-    parser.add_argument("--mode", choices=["last", "full", "file"])
+    parser.add_argument("--mode", choices=["last", "full", "file"])  # informational only; skill layer uses this
     parser.add_argument("--content-file")
     parser.add_argument("--source-label", default="")
     parser.add_argument("--rebuttal-file")
@@ -220,6 +220,9 @@ def main():
             sys.exit(1)
         if not Path(args.content_file).exists():
             print(f"Error: File not found: {args.content_file}", file=sys.stderr)
+            sys.exit(1)
+        if args.rebuttal_file and not Path(args.rebuttal_file).exists():
+            print(f"Error: File not found: {args.rebuttal_file}", file=sys.stderr)
             sys.exit(1)
 
     client = get_client()
