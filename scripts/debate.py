@@ -85,12 +85,21 @@ def resolve_models(client) -> tuple[str, str]:
         critics = sorted([m for m in all_ids if CRITIC_ALIAS in m], reverse=True)
         judges = sorted([m for m in all_ids if JUDGE_ALIAS in m], reverse=True)
 
-        if not critics or not judges:
+        if not critics:
             grok_models = [m for m in all_ids if "grok" in m.lower()]
             print(
-                f"Error: No models matching '{CRITIC_ALIAS}' or '{JUDGE_ALIAS}' found.\n"
+                f"Error: No models matching critic alias '{CRITIC_ALIAS}' found.\n"
                 f"Available Grok models: {grok_models}\n"
-                "Check XAI_API_KEY or update model aliases in debate.py.",
+                "Check XAI_API_KEY or update CRITIC_ALIAS in debate.py.",
+                file=sys.stderr
+            )
+            sys.exit(1)
+        if not judges:
+            grok_models = [m for m in all_ids if "grok" in m.lower()]
+            print(
+                f"Error: No models matching judge alias '{JUDGE_ALIAS}' found.\n"
+                f"Available Grok models: {grok_models}\n"
+                "Check XAI_API_KEY or update JUDGE_ALIAS in debate.py.",
                 file=sys.stderr
             )
             sys.exit(1)

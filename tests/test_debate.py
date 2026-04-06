@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 from unittest.mock import MagicMock
 import pytest
+from scripts.debate import CACHE_TTL_SECONDS
 
 CACHE_PATH = Path.home() / ".claude" / "cross-review-models.json"
 
@@ -15,7 +16,7 @@ def _clear_cache():
     if CACHE_PATH.exists():
         CACHE_PATH.unlink()
 
-def test_cache_hit_uses_cached_ids(monkeypatch):
+def test_cache_hit_uses_cached_ids():
     """Fresh cache (<24h) returns cached model IDs without API call."""
     _write_cache({
         "resolved_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -42,11 +43,16 @@ def test_cache_miss_fetches_from_api(monkeypatch):
     assert critic == "grok-4.20-reasoning-0309"
     assert judge == "grok-4.20-multi-agent-0309"
     assert CACHE_PATH.exists()
+    written = json.loads(CACHE_PATH.read_text())
+    assert written["critic"] == "grok-4.20-reasoning-0309"
+    assert written["judge"] == "grok-4.20-multi-agent-0309"
+    assert "resolved_at" in written
     _clear_cache()
 
 def test_cache_expiry_refetches(monkeypatch):
     """Cache older than 24h is treated as miss."""
-    old_time = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 90000))
+    EXPIRED_AGE_SECONDS = CACHE_TTL_SECONDS + 3600  # 1 hour past TTL
+    old_time = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - EXPIRED_AGE_SECONDS))
     _write_cache({"resolved_at": old_time, "critic": "old-critic", "judge": "old-judge"})
     mock_model_reasoning = MagicMock(); mock_model_reasoning.id = "grok-4.20-reasoning-0415"
     mock_model_agent = MagicMock(); mock_model_agent.id = "grok-4.20-multi-agent-0415"
@@ -68,6 +74,9 @@ def test_cache_corruption_treated_as_miss():
     from scripts.debate import resolve_models
     critic, judge = resolve_models(mock_client)
     assert critic == "grok-4.20-reasoning-0309"
+    written = json.loads(CACHE_PATH.read_text())
+    assert written["critic"] == "grok-4.20-reasoning-0309"
+    assert written["judge"] == "grok-4.20-multi-agent-0309"
     _clear_cache()
 
 def test_no_matching_models_exits_loudly():
