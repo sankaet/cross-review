@@ -85,8 +85,8 @@ def resolve_models(client) -> tuple[str, str]:
         critics = sorted([m for m in all_ids if CRITIC_ALIAS in m], reverse=True)
         judges = sorted([m for m in all_ids if JUDGE_ALIAS in m], reverse=True)
 
+        grok_models = [m for m in all_ids if "grok" in m.lower()]
         if not critics:
-            grok_models = [m for m in all_ids if "grok" in m.lower()]
             print(
                 f"Error: No models matching critic alias '{CRITIC_ALIAS}' found.\n"
                 f"Available Grok models: {grok_models}\n"
@@ -95,7 +95,6 @@ def resolve_models(client) -> tuple[str, str]:
             )
             sys.exit(1)
         if not judges:
-            grok_models = [m for m in all_ids if "grok" in m.lower()]
             print(
                 f"Error: No models matching judge alias '{JUDGE_ALIAS}' found.\n"
                 f"Available Grok models: {grok_models}\n"
