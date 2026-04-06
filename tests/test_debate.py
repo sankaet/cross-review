@@ -158,3 +158,86 @@ def test_get_synthesis_calls_judge(tmp_path):
     assert result == "Final verdict: Claude was right."
     call_args = mock_client.chat.completions.create.call_args
     assert call_args.kwargs["model"] == "grok-4.20-multi-agent-0309"
+
+
+def test_missing_api_key_exits(monkeypatch, tmp_path):
+    """Missing XAI_API_KEY causes SystemExit(1) immediately."""
+    monkeypatch.delenv("XAI_API_KEY", raising=False)
+    from scripts.debate import check_api_key
+    with pytest.raises(SystemExit) as exc:
+        check_api_key()
+    assert exc.value.code == 1
+
+
+def test_content_file_not_found_exits(monkeypatch, tmp_path):
+    """Non-existent --content-file causes clean SystemExit(1) before any API call."""
+    monkeypatch.setenv("XAI_API_KEY", "xai-fake-key")
+    transcript_file = tmp_path / "transcript.md"
+    import sys as _sys
+    _sys.argv = [
+        "debate.py", "--mode", "last",
+        "--content-file", "/tmp/nonexistent-cr-file-xyz123.txt",
+        "--source-label", "last response",
+        "--transcript-file", str(transcript_file),
+        "--round", "1"
+    ]
+    from scripts import debate as _debate
+    with pytest.raises(SystemExit) as exc:
+        _debate.main()
+    assert exc.value.code == 1
+
+
+def test_critique_emit_includes_word_count(capsys):
+    """Critique JSON output includes word_count field as an integer."""
+    from scripts.debate import emit
+    critique_text = "This plan has three flaws. First the scope. Second the timeline. Third no error handling."
+    word_count = len(critique_text.split())
+    emit({"type": "critique", "round": 1, "content": critique_text, "word_count": word_count})
+    captured = capsys.readouterr()
+    data = json.loads(captured.out.strip())
+    assert data["type"] == "critique"
+    assert "word_count" in data
+    assert isinstance(data["word_count"], int)
+    assert data["word_count"] == word_count
+
+
+def test_transcript_written_correctly(tmp_path):
+    """Transcript file is created with correct header and round sections."""
+    transcript_file = tmp_path / "transcript.md"
+    from scripts.debate import init_transcript, append_transcript_section
+    init_transcript(str(transcript_file), mode_label="last response",
+                    critic_model="grok-4.20-reasoning-0309",
+                    judge_model="grok-4.20-multi-agent-0309",
+                    content="The content to review.")
+    append_transcript_section(str(transcript_file), "Round 1 — Grok Critique", "Flaw found!")
+    append_transcript_section(str(transcript_file), "Round 1 — Claude Rebuttal", "Flaw addressed.")
+    text = transcript_file.read_text()
+    assert "# Cross-Review Transcript" in text
+    assert "Mode: last response" in text
+    assert "grok-4.20-reasoning-0309" in text
+    assert "Round 1 — Grok Critique" in text
+    assert "Flaw found!" in text
+
+
+def test_partial_transcript_on_api_error(tmp_path):
+    """API error mid-debate appends error marker to transcript."""
+    transcript_file = tmp_path / "transcript.md"
+    from scripts.debate import init_transcript, append_transcript_section, append_error_to_transcript
+    init_transcript(str(transcript_file), "last response", "critic", "judge", "content")
+    append_transcript_section(str(transcript_file), "Round 1 — Grok Critique", "First critique.")
+    append_error_to_transcript(str(transcript_file), "HTTP 429: rate limit exceeded")
+    text = transcript_file.read_text()
+    assert "[API ERROR: HTTP 429: rate limit exceeded]" in text
+
+
+def test_convergence_emit_in_output(tmp_path, capsys):
+    """After critique, convergence result is emitted as JSON line."""
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.return_value.choices[0].message.content = "NO"
+    from scripts.debate import check_convergence, emit
+    converged = check_convergence(mock_client, "judge-model", "A critique.")
+    emit({"type": "convergence", "round": 1, "converged": converged})
+    captured = capsys.readouterr()
+    data = json.loads(captured.out.strip())
+    assert data["type"] == "convergence"
+    assert data["converged"] == True

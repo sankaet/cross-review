@@ -12,7 +12,9 @@ Usage:
     --transcript-file ... --round 2
   python debate.py --synthesize --transcript-file /tmp/cross-review-ts.md
 """
+import argparse
 import calendar
+import datetime
 import json
 import os
 import sys
@@ -177,5 +179,83 @@ def get_synthesis(client, judge_model: str, transcript_file: str) -> str:
     return response.choices[0].message.content
 
 
+def init_transcript(transcript_file: str, mode_label: str, critic_model: str,
+                    judge_model: str, content: str):
+    ts = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    header = (
+        f"# Cross-Review Transcript\n"
+        f"Date: {ts}\n"
+        f"Mode: {mode_label}\n"
+        f"Models: {critic_model} (critic), {judge_model} (judge)\n\n"
+        f"## Content Reviewed\n{content}\n"
+    )
+    Path(transcript_file).write_text(header)
+
+
+def append_transcript_section(transcript_file: str, section_title: str, content: str):
+    with open(transcript_file, "a") as f:
+        f.write(f"\n## {section_title}\n{content}\n")
+
+
+def append_error_to_transcript(transcript_file: str, message: str):
+    with open(transcript_file, "a") as f:
+        f.write(f"\n[API ERROR: {message}]\n")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Grok debate interface for cross-review plugin")
+    parser.add_argument("--mode", choices=["last", "full", "file"])
+    parser.add_argument("--content-file")
+    parser.add_argument("--source-label", default="")
+    parser.add_argument("--rebuttal-file")
+    parser.add_argument("--transcript-file", required=True)
+    parser.add_argument("--round", type=int, default=1)
+    parser.add_argument("--synthesize", action="store_true")
+    args = parser.parse_args()
+
+    # Validate inputs before making any API calls
+    if not args.synthesize:
+        if not args.content_file:
+            print("Error: --content-file is required unless --synthesize is set.", file=sys.stderr)
+            sys.exit(1)
+        if not Path(args.content_file).exists():
+            print(f"Error: File not found: {args.content_file}", file=sys.stderr)
+            sys.exit(1)
+
+    client = get_client()
+    critic_model, judge_model = resolve_models(client)
+
+    if args.synthesize:
+        try:
+            synthesis = get_synthesis(client, judge_model, args.transcript_file)
+            append_transcript_section(args.transcript_file, "Synthesis", synthesis)
+            emit({"type": "synthesis", "content": synthesis})
+        except Exception as e:
+            append_error_to_transcript(args.transcript_file, str(e))
+            emit({"type": "error", "code": "api_error", "message": str(e)})
+            sys.exit(1)
+        return
+
+    # Critique round (file already validated above)
+    try:
+        if args.round == 1:
+            content = Path(args.content_file).read_text()
+            init_transcript(args.transcript_file, args.source_label, critic_model, judge_model, content)
+
+        critique = get_critique(client, critic_model, args.content_file, args.rebuttal_file)
+        append_transcript_section(args.transcript_file, f"Round {args.round} — Grok Critique", critique)
+
+        word_count = len(critique.split())
+        emit({"type": "critique", "round": args.round, "content": critique, "word_count": word_count})
+
+        converged = check_convergence(client, judge_model, critique)
+        emit({"type": "convergence", "round": args.round, "converged": converged})
+
+    except Exception as e:
+        append_error_to_transcript(args.transcript_file, str(e))
+        emit({"type": "error", "code": "api_error", "message": str(e)})
+        sys.exit(1)
+
+
 if __name__ == "__main__":
-    pass  # main() added in Task 4
+    main()
