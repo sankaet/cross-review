@@ -1,0 +1,7 @@
+{
+  "name": "cross-review",
+  "version": "1.0.0",
+  "description": "Cross-model review and debate: Claude vs Grok, with interactive round control",
+  "executables": ["scripts/debate.py"],
+  "requires_env": ["XAI_API_KEY"]
+}
